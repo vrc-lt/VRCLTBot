@@ -1219,6 +1219,7 @@ name = "vrcltbot"
 version = "0.1.0"
 dependencies = [
  "serenity",
+ "tokio",
 ]
 
 [[package]]
