@@ -19,7 +19,24 @@ struct General;
 struct Handler;
 
 #[async_trait]
-impl EventHandler for Handler {}
+impl EventHandler for Handler {
+  async fn message(&self, ctx: Context, msg: Message){
+      match msg.mentions_me(&ctx).await{
+          Ok(true) => {
+              if !msg.attachments.is_empty() {
+                let attachment_url = &msg.attachments[0].url;
+                if let Err(why) = msg.reply(ctx, format!("まだ変換はできません。{}", attachment_url)).await{
+                    println!("Error sending message: {:?}", why);
+                }
+
+              }else{
+                 ();
+              }
+          }
+          _ => ()
+      }
+  }
+}
 
 #[tokio::main]
 async fn main() {
