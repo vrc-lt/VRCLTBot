@@ -16,6 +16,8 @@ extern crate reqwest;
 use bytes::Bytes;
 
 use std::fs;
+use std::fmt::Display;
+use std::io::{self, Read, Write, BufWriter};
 use std::process::Command;
 use std::env;
   
@@ -34,9 +36,10 @@ impl EventHandler for Handler {
               if !msg.attachments.is_empty() {
                 let attachment_url = &msg.attachments[0].url;
                 if(attachment_url.to_string().ends_with(".pdf")){
-                    let _ = download_pdf(attachment_url.to_string());
+                    clean_up_tmp_dirs();
+                    let _ = download_pdf(attachment_url.to_string()).await;
                     let _ = convert_pdf_to_png();
-                    let paths = vec!["./result.mp4"];
+                    let paths = vec!["./downloaded/result.mp4"];
                     println!("post file...");
                     let _ = msg.channel_id.send_files(&ctx, paths, |m| m.content("変換しました")).await.unwrap();
                     println!("files sent.");
@@ -75,6 +78,13 @@ async fn main() {
     }
 }
 
+// #[tokio::main]
+// async fn main(){
+//     let _ = download_pdf("https://cdn.discordapp.com/attachments/779324182639018015/779879506127224832/VRC-LT_7_Opening.pdf".to_string()).await;
+//     let _ = convert_pdf_to_png();
+
+// }
+
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     msg.reply(ctx, "Pong!").await?;
@@ -82,23 +92,36 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
-fn convert_pdf_to_png(){
+fn clean_up_tmp_dirs(){
     let _ = Command::new("rm")
             .arg("-rf")
-            .arg("./downloaded-*")
+            .arg("downloaded")
             .output()
             .expect("failed to execute process").stdout;
+    let rm_downloaded = Command::new("mkdir")
+            .arg("downloaded")
+            .output()
+            .expect("failed to execute process").stdout;
+
+    println!("running rm: {:#?}", String::from_utf8(rm_downloaded));
+}
+fn convert_pdf_to_png(){
     let _ = Command::new("pdftoppm")
+            .current_dir("downloaded")
             .arg("-png")
             .arg("downloaded.pdf")
-            .arg("downloaded-image")
+            .arg("image")
             .output()
             .expect("failed to execute process").stdout;
-    let _ = Command::new("ffmpeg")
+    let exit_status = Command::new("ffmpeg")
+            .current_dir("downloaded")
+            .arg("-y")
+            .arg("-pattern_type")
+            .arg("glob")
             .arg("-r")
             .arg("1")
             .arg("-i")
-            .arg("downloaded-image-%d.png")
+            .arg("image-*.png")
             .arg("-c:v")
             .arg("libx264")
             .arg("-r")
@@ -107,7 +130,8 @@ fn convert_pdf_to_png(){
             .arg("yuv420p")
             .arg("result.mp4")
             .output()
-            .expect("failed to execute process").stdout;
+            .expect("failed to execute process").stderr;
+    println!("running ffmpeg: {:#?}", String::from_utf8(exit_status));
     println!("conversion finished.");
 }
 
@@ -117,6 +141,14 @@ async fn download_pdf(url_string: String) -> Result<Bytes, reqwest::Error>{
         .send()
         .await?;
     let res_bytes = resp.bytes().await?;
-    fs::write("downloaded.pdf", res_bytes.to_vec()).unwrap();
+    println!("pdf file downloaded.");
+    write_binary_file(res_bytes.clone()).unwrap();
     return Ok(res_bytes);
+}
+
+fn write_binary_file(bytes: Bytes) -> std::io::Result<()>{
+    let mut file = BufWriter::new(fs::File::create("./downloaded/downloaded.pdf").unwrap());
+    file.write_all(bytes.as_ref())?;
+    println!("pdf file wrote.");
+    Ok(())
 }
