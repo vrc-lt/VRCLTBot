@@ -10,7 +10,6 @@ use serenity::framework::standard::{
     }
 };
 
-mod pdf_to_png;
 
 extern crate reqwest;
 
@@ -19,7 +18,6 @@ use bytes::Bytes;
 use std::fs;
 use std::process::Command;
 use std::env;
-use std::collections::HashMap;
   
 
 #[group]
@@ -35,8 +33,17 @@ impl EventHandler for Handler {
           Ok(true) => {
               if !msg.attachments.is_empty() {
                 let attachment_url = &msg.attachments[0].url;
-                if let Err(why) = msg.reply(ctx, format!("まだ変換はできません。{}", attachment_url)).await{
-                    println!("Error sending message: {:?}", why);
+                if(attachment_url.to_string().ends_with(".pdf")){
+                    let _ = download_pdf(attachment_url.to_string());
+                    let _ = convert_pdf_to_png();
+                    let paths = vec!["./result.mp4"];
+                    println!("post file...");
+                    let _ = msg.channel_id.send_files(&ctx, paths, |m| m.content("変換しました")).await.unwrap();
+                    println!("files sent.");
+                }else{
+                    if let Err(why) = msg.reply(ctx, format!("まだ変換はできません。{}", attachment_url)).await{
+                        println!("Error sending message: {:?}", why);
+                    }
                 }
 
               }else{
@@ -48,29 +55,24 @@ impl EventHandler for Handler {
   }
 }
 
-// #[tokio::main]
-// async fn main() {
-//     let framework = StandardFramework::new()
-//         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
-//         .group(&GENERAL_GROUP);
-
-//     // Login with a bot token from the environment
-//     let token = env::var("DISCORD_TOKEN").expect("token");
-//     let mut client = Client::builder(token)
-//         .event_handler(Handler)
-//         .framework(framework)
-//         .await
-//         .expect("Error creating client");
-
-//     // start listening for events by starting a single shard
-//     if let Err(why) = client.start().await {
-//         println!("An error occurred while running the client: {:?}", why);
-//     }
-// }
 #[tokio::main]
 async fn main() {
-    let downloaded = download_pdf("https://cdn.discordapp.com/attachments/779324182639018015/779879506127224832/VRC-LT_7_Opening.pdf".to_string()).await;
-    let _ =convert_pdf_to_png();
+    let framework = StandardFramework::new()
+        .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
+        .group(&GENERAL_GROUP);
+
+    // Login with a bot token from the environment
+    let token = env::var("DISCORD_TOKEN").expect("token");
+    let mut client = Client::builder(token)
+        .event_handler(Handler)
+        .framework(framework)
+        .await
+        .expect("Error creating client");
+
+    // start listening for events by starting a single shard
+    if let Err(why) = client.start().await {
+        println!("An error occurred while running the client: {:?}", why);
+    }
 }
 
 #[command]
@@ -106,6 +108,7 @@ fn convert_pdf_to_png(){
             .arg("result.mp4")
             .output()
             .expect("failed to execute process").stdout;
+    println!("conversion finished.");
 }
 
 async fn download_pdf(url_string: String) -> Result<Bytes, reqwest::Error>{
