@@ -1,1 +1,6 @@
 /target
+
+*.pdf
+*.png
+*.mp4
+font_*
