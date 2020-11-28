@@ -12,6 +12,6 @@ COPY src /app/src/
 COPY ./Cargo.* /app/
 WORKDIR /app/
 RUN ls
-RUN cargo build
+RUN cargo install --path .
 ENV DISCORD_TOKEN ""
-ENTRYPOINT cargo run
+CMD ["vrcltbot"]

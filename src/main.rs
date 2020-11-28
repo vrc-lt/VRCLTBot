@@ -60,7 +60,7 @@ impl EventHandler for Handler {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
         .group(&GENERAL_GROUP);
@@ -77,13 +77,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why);
     }
-
-    let mut stream = signal(SignalKind::terminate())?;
-
-    loop {
-        stream.recv().await;
-    }
-
+    
+    let shard_manager = client.shard_manager.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.expect("Could not register ctrl+c handler");
+        shard_manager.lock().await.shutdown_all().await;
+    });
 }
 
 #[command]
