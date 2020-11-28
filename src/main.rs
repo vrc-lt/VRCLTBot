@@ -20,6 +20,7 @@ use std::fmt::Display;
 use std::io::{self, Read, Write, BufWriter};
 use std::process::Command;
 use std::env;
+use tokio::signal::unix::{signal, SignalKind};
   
 
 #[group]
@@ -59,7 +60,7 @@ impl EventHandler for Handler {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
         .group(&GENERAL_GROUP);
@@ -76,14 +77,14 @@ async fn main() {
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why);
     }
+
+    let mut stream = signal(SignalKind::terminate())?;
+
+    loop {
+        stream.recv().await;
+    }
+
 }
-
-// #[tokio::main]
-// async fn main(){
-//     let _ = download_pdf("https://cdn.discordapp.com/attachments/779324182639018015/779879506127224832/VRC-LT_7_Opening.pdf".to_string()).await;
-//     let _ = convert_pdf_to_png();
-
-// }
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
@@ -121,7 +122,7 @@ fn convert_pdf_to_png(){
             .arg("-pattern_type")
             .arg("glob")
             .arg("-r")
-            .arg("1")
+            .arg("1/2")
             .arg("-i")
             .arg("image-*.png")
             .arg("-c:v")
