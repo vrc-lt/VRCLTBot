@@ -108,6 +108,8 @@ fn clean_up_tmp_dirs(){
 fn convert_pdf_to_png(){
     let _ = Command::new("pdftoppm")
             .current_dir("downloaded")
+            .arg("-scale-to")
+            .arg("1280")
             .arg("-png")
             .arg("downloaded.pdf")
             .arg("image")
