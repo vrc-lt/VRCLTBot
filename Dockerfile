@@ -14,4 +14,4 @@ WORKDIR /app/
 RUN ls
 RUN cargo install --path .
 ENV DISCORD_TOKEN ""
-CMD ["vrcltbot"]
+ENTRYPOINT vrcltbot
