@@ -10,6 +10,7 @@ RUN sudo apt install -y xpdf ffmpeg
 RUN mkdir /app
 COPY src /app/src/
 COPY ./Cargo.* /app/
+COPY ./rust-toolchain /app/
 WORKDIR /app/
 RUN ls
 RUN cargo install --path .
