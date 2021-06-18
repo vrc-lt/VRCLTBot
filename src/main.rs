@@ -1,27 +1,20 @@
 use serenity::async_trait;
 use serenity::client::{Client, Context, EventHandler};
-use serenity::model::channel::Message;
 use serenity::framework::standard::{
-    StandardFramework,
-    CommandResult,
-    macros::{
-        command,
-        group
-    }
+    macros::{command, group},
+    CommandResult, StandardFramework,
 };
-
+use serenity::model::channel::Message;
 
 extern crate reqwest;
 
 use bytes::Bytes;
 
 use std::fs;
-use std::fmt::Display;
-use std::io::{self, Read, Write, BufWriter};
-use std::process::Command;
+
 use std::env;
-use tokio::signal::unix::{signal, SignalKind};
-  
+use std::io::{BufWriter, Write};
+use std::process::Command;
 
 #[group]
 #[commands(ping)]
@@ -31,32 +24,31 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-  async fn message(&self, ctx: Context, msg: Message){
-      match msg.mentions_me(&ctx).await{
-          Ok(true) => {
-              if !msg.attachments.is_empty() {
-                let attachment_url = &msg.attachments[0].url;
-                if(attachment_url.to_string().ends_with(".pdf")){
-                    clean_up_tmp_dirs();
-                    let _ = download_pdf(attachment_url.to_string()).await;
-                    let _ = convert_pdf_to_png();
-                    let paths = vec!["./downloaded/result.mp4"];
-                    println!("post file...");
-                    let _ = msg.channel_id.send_files(&ctx, paths, |m| m.content("変換しました")).await.unwrap();
-                    println!("files sent.");
-                }else{
-                    if let Err(why) = msg.reply(ctx, format!("まだ変換はできません。{}", attachment_url)).await{
+    async fn message(&self, ctx: Context, msg: Message) {
+        if let Ok(true) = msg.mentions_me(&ctx).await {
+                if !msg.attachments.is_empty() {
+                    let attachment_url = &msg.attachments[0].url;
+                    if (attachment_url.to_string().ends_with(".pdf")) {
+                        clean_up_tmp_dirs();
+                        let _ = download_pdf(attachment_url.to_string()).await;
+                        let _ = convert_pdf_to_png();
+                        let paths = vec!["./downloaded/result.mp4"];
+                        println!("post file...");
+                        let _ = msg
+                            .channel_id
+                            .send_files(&ctx, paths, |m| m.content("変換しました"))
+                            .await
+                            .unwrap();
+                        println!("files sent.");
+                    } else if let Err(why) = msg
+                        .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+                        .await
+                    {
                         println!("Error sending message: {:?}", why);
                     }
-                }
-
-              }else{
-                 ();
-              }
-          }
-          _ => ()
-      }
-  }
+            }
+        }
+    }
 }
 
 #[tokio::main]
@@ -77,10 +69,11 @@ async fn main() {
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why);
     }
-    
     let shard_manager = client.shard_manager.clone();
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.expect("Could not register ctrl+c handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Could not register ctrl+c handler");
         shard_manager.lock().await.shutdown_all().await;
     });
 }
@@ -92,65 +85,67 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
-fn clean_up_tmp_dirs(){
+fn clean_up_tmp_dirs() {
     let _ = Command::new("rm")
-            .arg("-rf")
-            .arg("downloaded")
-            .output()
-            .expect("failed to execute process").stdout;
+        .arg("-rf")
+        .arg("downloaded")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
     let rm_downloaded = Command::new("mkdir")
-            .arg("downloaded")
-            .output()
-            .expect("failed to execute process").stdout;
+        .arg("downloaded")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
 
     println!("running rm: {:#?}", String::from_utf8(rm_downloaded));
 }
-fn convert_pdf_to_png(){
+fn convert_pdf_to_png() {
     let _ = Command::new("pdftoppm")
-            .current_dir("downloaded")
-            .arg("-scale-to-x")
-            .arg("1280")
-            .arg("-scale-to-y")
-            .arg("720")
-            .arg("-png")
-            .arg("downloaded.pdf")
-            .arg("image")
-            .output()
-            .expect("failed to execute process").stdout;
+        .current_dir("downloaded")
+        .arg("-scale-to-x")
+        .arg("1280")
+        .arg("-scale-to-y")
+        .arg("720")
+        .arg("-png")
+        .arg("downloaded.pdf")
+        .arg("image")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
     let exit_status = Command::new("ffmpeg")
-            .current_dir("downloaded")
-            .arg("-y")
-            .arg("-pattern_type")
-            .arg("glob")
-            .arg("-r")
-            .arg("1/2")
-            .arg("-i")
-            .arg("image-*.png")
-            .arg("-c:v")
-            .arg("libx264")
-            .arg("-r")
-            .arg("30")
-            .arg("-pix_fmt")
-            .arg("yuv420p")
-            .arg("result.mp4")
-            .output()
-            .expect("failed to execute process").stderr;
+        .current_dir("downloaded")
+        .arg("-y")
+        .arg("-pattern_type")
+        .arg("glob")
+        .arg("-r")
+        .arg("1/2")
+        .arg("-i")
+        .arg("image-*.png")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-r")
+        .arg("30")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg("result.mp4")
+        .output()
+        .expect("failed to execute process")
+        .stderr;
     println!("running ffmpeg: {:#?}", String::from_utf8(exit_status));
     println!("conversion finished.");
 }
 
-async fn download_pdf(url_string: String) -> Result<Bytes, reqwest::Error>{
+async fn download_pdf(url_string: String) -> Result<Bytes, reqwest::Error> {
     let client = reqwest::Client::new();
-    let resp = client.get(&url_string)
-        .send()
-        .await?;
+    let resp = client.get(&url_string).send().await?;
     let res_bytes = resp.bytes().await?;
     println!("pdf file downloaded.");
     write_binary_file(res_bytes.clone()).unwrap();
-    return Ok(res_bytes);
+    Ok(res_bytes)
 }
 
-fn write_binary_file(bytes: Bytes) -> std::io::Result<()>{
+fn write_binary_file(bytes: Bytes) -> std::io::Result<()> {
     let mut file = BufWriter::new(fs::File::create("./downloaded/downloaded.pdf").unwrap());
     file.write_all(bytes.as_ref())?;
     println!("pdf file wrote.");
