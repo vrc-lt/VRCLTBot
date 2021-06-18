@@ -1,0 +1,9 @@
+version: '3.1'
+
+services:
+  vrc-lt-bot:
+    build: .
+    #image: ghcr.io/vrc-lt/VRCLTBot
+    restart: always
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
