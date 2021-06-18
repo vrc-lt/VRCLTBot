@@ -4,3 +4,5 @@
 *.png
 *.mp4
 font_*
+
+.env
