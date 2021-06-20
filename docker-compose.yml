@@ -3,7 +3,7 @@ version: '3.1'
 services:
   vrc-lt-bot:
     build: .
-    #image: ghcr.io/vrc-lt/VRCLTBot
+    #image: ghcr.io/vrc-lt/vrcltbot:master
     restart: always
     init: true
     environment:
