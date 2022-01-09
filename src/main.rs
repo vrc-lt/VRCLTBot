@@ -26,27 +26,31 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         if let Ok(true) = msg.mentions_me(&ctx).await {
-            if !msg.attachments.is_empty() {
-                let attachment_url = &msg.attachments[0].url;
-                if (attachment_url.to_string().ends_with(".pdf")) {
-                    clean_up_tmp_dirs();
-                    let _ = download_pdf(attachment_url.to_string()).await;
-                    let _ = convert_pdf_to_png();
-                    let paths = vec!["./downloaded/result.mp4"];
-                    println!("post file...");
-                    let _ = msg
-                        .channel_id
-                        .send_files(&ctx, paths, |m| m.content("変換しました"))
-                        .await
-                        .unwrap();
-                    println!("files sent.");
-                } else if let Err(why) = msg
-                    .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+            if msg.attachments.is_empty() {
+                msg.reply(ctx, "変換したいPDFファイルを添付してください")
                     .await
-                {
-                    println!("Error sending message: {:?}", why);
-                }
+                    .expect("reply failed");
+                return;
             }
+            let attachment_url = &msg.attachments[0].url;
+            if (!attachment_url.ends_with("pdf")) {
+                msg.reply(ctx, "PDFファイルを添付してください")
+                    .await
+                    .expect("reply failed");
+                return;
+            }
+
+            clean_up_tmp_dirs();
+            let _ = download_pdf(attachment_url.to_string()).await;
+            let _ = convert_pdf_to_png();
+            let paths = vec!["./downloaded/result.mp4"];
+            println!("post file...");
+            let _ = msg
+                .channel_id
+                .send_files(&ctx, paths, |m| m.content("変換しました"))
+                .await
+                .unwrap();
+            println!("files sent.");
         }
     }
 }
