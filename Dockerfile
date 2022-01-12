@@ -1,18 +1,19 @@
-FROM rust:slim
-ENV DEBIAN_FRONTEND noninteractive
-RUN apt update
-RUN apt -y upgrade
-RUN apt install -y sudo
-
-RUN sudo apt install -y pkg-config openssl
-RUN sudo apt install -y libssl-dev
-RUN sudo apt install -y xpdf ffmpeg 
-RUN mkdir /app
-COPY src /app/src/
-COPY ./Cargo.* /app/
-COPY ./rust-toolchain /app/
+FROM rust:1.57 AS build
+#ENV DEBIAN_FRONTEND noninteractive
+#RUN apt update
+#RUN apt install -y pkg-config openssl libssl-dev
 WORKDIR /app/
-RUN ls
-RUN cargo install --path .
+COPY Cargo.lock Cargo.toml rust-toolchain ./
+COPY src src
+RUN cargo build --release
+
+FROM debian:bullseye-slim
+RUN apt-get update\
+ && apt-get install -y --no-install-recommends poppler-utils ffmpeg\
+ && rm -rf /var/cache/apt/lists/*
+RUN install -d -o daemon -g daemon /work
+COPY --from=build /app/target/release/vrcltbot /usr/local/bin/vrcltbot
+WORKDIR /work
 ENV DISCORD_TOKEN ""
-ENTRYPOINT vrcltbot
+CMD ["/usr/local/bin/vrcltbot"]
+USER daemon
