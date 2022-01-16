@@ -127,6 +127,6 @@ fn write_binary_file(bytes: Bytes, write_path: &std::path::Path) -> std::io::Res
 }
 #[test]
 fn test_conversion() {
-    let test_pdf_path = std::path::Path::new("./src/test/test.pdf");
+    let test_pdf_path = std::path::Path::new("./test_data/test.pdf");
     let _ = convert_pdf_to_png(test_pdf_path);
 }
