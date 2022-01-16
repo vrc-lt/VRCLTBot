@@ -10,6 +10,8 @@ extern crate reqwest;
 
 use bytes::Bytes;
 
+use vrcltbot::convert_pdf_to_png;
+
 use std::fs;
 
 use std::env;
@@ -26,26 +28,28 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         if let Ok(true) = msg.mentions_me(&ctx).await {
-                if !msg.attachments.is_empty() {
-                    let attachment_url = &msg.attachments[0].url;
-                    if (attachment_url.to_string().ends_with(".pdf")) {
-                        clean_up_tmp_dirs();
-                        let _ = download_pdf(attachment_url.to_string()).await;
-                        let _ = convert_pdf_to_png();
-                        let paths = vec!["./downloaded/result.mp4"];
-                        println!("post file...");
-                        let _ = msg
-                            .channel_id
-                            .send_files(&ctx, paths, |m| m.content("変換しました"))
-                            .await
-                            .unwrap();
-                        println!("files sent.");
-                    } else if let Err(why) = msg
-                        .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+            if !msg.attachments.is_empty() {
+                let attachment_url = &msg.attachments[0].url;
+                if (attachment_url.to_string().ends_with(".pdf")) {
+                    clean_up_tmp_dirs();
+                    let pdf_path = std::path::Path::new("./downloaded/downloaded.pdf");
+                    let _ = download_pdf(attachment_url.to_string(), pdf_path)
+                        .await;
+                    let _ = convert_pdf_to_png(pdf_path);
+                    let paths = vec!["./downloaded/result.mp4"];
+                    println!("post file...");
+                    let _ = msg
+                        .channel_id
+                        .send_files(&ctx, paths, |m| m.content("変換しました"))
                         .await
-                    {
-                        println!("Error sending message: {:?}", why);
-                    }
+                        .unwrap();
+                    println!("files sent.");
+                } else if let Err(why) = msg
+                    .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+                    .await
+                {
+                    println!("Error sending message: {:?}", why);
+                }
             }
         }
     }
@@ -100,54 +104,26 @@ fn clean_up_tmp_dirs() {
 
     println!("running rm: {:#?}", String::from_utf8(rm_downloaded));
 }
-fn convert_pdf_to_png() {
-    let _ = Command::new("pdftoppm")
-        .current_dir("downloaded")
-        .arg("-scale-to-x")
-        .arg("1280")
-        .arg("-scale-to-y")
-        .arg("720")
-        .arg("-png")
-        .arg("downloaded.pdf")
-        .arg("image")
-        .output()
-        .expect("failed to execute process")
-        .stdout;
-    let exit_status = Command::new("ffmpeg")
-        .current_dir("downloaded")
-        .arg("-y")
-        .arg("-pattern_type")
-        .arg("glob")
-        .arg("-r")
-        .arg("1/2")
-        .arg("-i")
-        .arg("image-*.png")
-        .arg("-c:v")
-        .arg("libx264")
-        .arg("-r")
-        .arg("30")
-        .arg("-pix_fmt")
-        .arg("yuv420p")
-        .arg("result.mp4")
-        .output()
-        .expect("failed to execute process")
-        .stderr;
-    println!("running ffmpeg: {:#?}", String::from_utf8(exit_status));
-    println!("conversion finished.");
-}
 
-async fn download_pdf(url_string: String) -> Result<Bytes, reqwest::Error> {
+async fn download_pdf(
+    url_string: String,
+    write_path: &std::path::Path,
+) {
     let client = reqwest::Client::new();
-    let resp = client.get(&url_string).send().await?;
-    let res_bytes = resp.bytes().await?;
+    let resp = client.get(&url_string).send().await.unwrap();
+    let res_bytes = resp.bytes().await.unwrap();
     println!("pdf file downloaded.");
-    write_binary_file(res_bytes.clone()).unwrap();
-    Ok(res_bytes)
+    write_binary_file(res_bytes, write_path);
 }
 
-fn write_binary_file(bytes: Bytes) -> std::io::Result<()> {
-    let mut file = BufWriter::new(fs::File::create("./downloaded/downloaded.pdf").unwrap());
-    file.write_all(bytes.as_ref())?;
+fn write_binary_file(bytes: Bytes, write_path: &std::path::Path) {
+    let file = fs::File::create(write_path).unwrap();
+    let mut file_writer = BufWriter::new(file);
+    let _ = file_writer.write_all(bytes.as_ref());
     println!("pdf file wrote.");
-    Ok(())
+}
+#[test]
+fn test_conversion() {
+    let test_pdf_path = std::path::Path::new("./test_data/test.pdf");
+    let _ = convert_pdf_to_png(test_pdf_path);
 }

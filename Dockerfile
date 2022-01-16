@@ -9,7 +9,7 @@ RUN cargo build --release
 
 FROM debian:bullseye-slim
 RUN apt-get update\
- && apt-get install -y --no-install-recommends poppler-utils ffmpeg\
+ && apt-get install -y --no-install-recommends poppler-utils ffmpeg ca-certificates \
  && rm -rf /var/cache/apt/lists/*
 RUN install -d -o daemon -g daemon /work
 COPY --from=build /app/target/release/vrcltbot /usr/local/bin/vrcltbot
