@@ -34,8 +34,7 @@ impl EventHandler for Handler {
                     clean_up_tmp_dirs();
                     let pdf_path = std::path::Path::new("./downloaded/downloaded.pdf");
                     let _ = download_pdf(attachment_url.to_string(), pdf_path)
-                        .await
-                        .unwrap();
+                        .await;
                     let _ = convert_pdf_to_png(pdf_path);
                     let paths = vec!["./downloaded/result.mp4"];
                     println!("post file...");
@@ -109,21 +108,19 @@ fn clean_up_tmp_dirs() {
 async fn download_pdf(
     url_string: String,
     write_path: &std::path::Path,
-) -> Result<(), reqwest::Error> {
+) {
     let client = reqwest::Client::new();
-    let resp = client.get(&url_string).send().await?;
-    let res_bytes = resp.bytes().await?;
+    let resp = client.get(&url_string).send().await.unwrap();
+    let res_bytes = resp.bytes().await.unwrap();
     println!("pdf file downloaded.");
-    write_binary_file(res_bytes.clone(), write_path).unwrap();
-    return Ok(());
+    write_binary_file(res_bytes, write_path);
 }
 
-fn write_binary_file(bytes: Bytes, write_path: &std::path::Path) -> std::io::Result<()> {
+fn write_binary_file(bytes: Bytes, write_path: &std::path::Path) {
     let file = fs::File::create(write_path).unwrap();
     let mut file_writer = BufWriter::new(file);
-    file_writer.write_all(bytes.as_ref())?;
+    let _ = file_writer.write_all(bytes.as_ref());
     println!("pdf file wrote.");
-    return Ok(());
 }
 #[test]
 fn test_conversion() {
