@@ -29,30 +29,40 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         if let Ok(true) = msg.mentions_me(&ctx).await {
-            if !msg.attachments.is_empty() {
-                let attachment_url = &msg.attachments[0].url;
-                if (attachment_url.to_string().ends_with(".pdf")) {
-                    clean_up_tmp_dirs();
-                    let dir = TempDir::new().expect("create temp directory failed");
-                    let pdf_path = dir.path().join(std::path::Path::new("downloaded.pdf"));
-                    let _ = download_pdf(attachment_url.to_string(), &pdf_path)
-                        .await;
-                    let _ = convert_pdf_to_png(&pdf_path);
-                    let paths = vec![dir.path().join(std::path::Path::new("result.mp4"))];
-                    println!("post file...");
-                    let _ = msg
-                        .channel_id
-                        .send_files(&ctx, &paths, |m| m.content("変換しました"))
-                        .await
-                        .unwrap();
-                    println!("files sent.");
-                    dir.cleanup().unwrap();
-                } else if let Err(why) = msg
-                    .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+            if msg.attachments.is_empty() {
+                msg.reply(ctx, "変換したいPDFファイルを添付してください")
                     .await
-                {
-                    println!("Error sending message: {:?}", why);
-                }
+                    .expect("reply failed");
+                return;
+            }
+            let attachment_url = &msg.attachments[0].url;
+
+            if (!attachment_url.to_string().ends_with(".pdf")) {
+                msg.reply(ctx, "PDFファイルを添付してください")
+                    .await
+                    .expect("reply failed");
+                return;
+            }
+            if (attachment_url.to_string().ends_with(".pdf")) {
+                clean_up_tmp_dirs();
+                let dir = TempDir::new().expect("create temp directory failed");
+                let pdf_path = dir.path().join(std::path::Path::new("downloaded.pdf"));
+                let _ = download_pdf(attachment_url.to_string(), &pdf_path).await;
+                let _ = convert_pdf_to_png(&pdf_path);
+                let paths = vec![dir.path().join(std::path::Path::new("result.mp4"))];
+                println!("post file...");
+                let _ = msg
+                    .channel_id
+                    .send_files(&ctx, &paths, |m| m.content("変換しました"))
+                    .await
+                    .unwrap();
+                println!("files sent.");
+                dir.cleanup().unwrap();
+            } else if let Err(why) = msg
+                .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
+                .await
+            {
+                println!("Error sending message: {:?}", why);
             }
         }
     }
@@ -108,10 +118,7 @@ fn clean_up_tmp_dirs() {
     println!("running rm: {:#?}", String::from_utf8(rm_downloaded));
 }
 
-async fn download_pdf(
-    url_string: String,
-    write_path: &std::path::Path,
-) {
+async fn download_pdf(url_string: String, write_path: &std::path::Path) {
     let client = reqwest::Client::new();
     let resp = client.get(&url_string).send().await.unwrap();
     let res_bytes = resp.bytes().await.unwrap();
@@ -133,7 +140,10 @@ fn test_conversion() {
     let copied_pdf_path = dir.path().join(std::path::Path::new("test.pdf"));
     std::fs::copy(test_pdf_path, &copied_pdf_path).unwrap();
     let _ = convert_pdf_to_png(&copied_pdf_path);
-    std::fs::copy(&dir.path().join(std::path::Path::new("result.mp4")),std::path::Path::new("./result.mp4")).unwrap(); 
+    std::fs::copy(
+        &dir.path().join(std::path::Path::new("result.mp4")),
+        std::path::Path::new("./result.mp4"),
+    )
+    .unwrap();
     dir.cleanup().unwrap();
-
 }
