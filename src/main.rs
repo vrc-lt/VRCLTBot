@@ -17,6 +17,7 @@ use std::fs;
 use std::env;
 use std::io::{BufWriter, Write};
 use std::process::Command;
+use temp_dir::TempDir;
 
 #[group]
 #[commands(ping)]
@@ -32,18 +33,20 @@ impl EventHandler for Handler {
                 let attachment_url = &msg.attachments[0].url;
                 if (attachment_url.to_string().ends_with(".pdf")) {
                     clean_up_tmp_dirs();
-                    let pdf_path = std::path::Path::new("./downloaded/downloaded.pdf");
-                    let _ = download_pdf(attachment_url.to_string(), pdf_path)
+                    let dir = TempDir::new().expect("create temp directory failed");
+                    let pdf_path = dir.path().join(std::path::Path::new("downloaded.pdf"));
+                    let _ = download_pdf(attachment_url.to_string(), &pdf_path)
                         .await;
-                    let _ = convert_pdf_to_png(pdf_path);
-                    let paths = vec!["./downloaded/result.mp4"];
+                    let _ = convert_pdf_to_png(&pdf_path);
+                    let paths = vec![dir.path().join(std::path::Path::new("result.mp4"))];
                     println!("post file...");
                     let _ = msg
                         .channel_id
-                        .send_files(&ctx, paths, |m| m.content("変換しました"))
+                        .send_files(&ctx, &paths, |m| m.content("変換しました"))
                         .await
                         .unwrap();
                     println!("files sent.");
+                    dir.cleanup().unwrap();
                 } else if let Err(why) = msg
                     .reply(ctx, format!("まだ変換はできません。{}", attachment_url))
                     .await
@@ -122,8 +125,15 @@ fn write_binary_file(bytes: Bytes, write_path: &std::path::Path) {
     let _ = file_writer.write_all(bytes.as_ref());
     println!("pdf file wrote.");
 }
+
 #[test]
 fn test_conversion() {
     let test_pdf_path = std::path::Path::new("./test_data/test.pdf");
-    let _ = convert_pdf_to_png(test_pdf_path);
+    let dir = TempDir::new().expect("create temp directory failed");
+    let copied_pdf_path = dir.path().join(std::path::Path::new("test.pdf"));
+    std::fs::copy(test_pdf_path, &copied_pdf_path).unwrap();
+    let _ = convert_pdf_to_png(&copied_pdf_path);
+    std::fs::copy(&dir.path().join(std::path::Path::new("result.mp4")),std::path::Path::new("./result.mp4")).unwrap(); 
+    dir.cleanup().unwrap();
+
 }
